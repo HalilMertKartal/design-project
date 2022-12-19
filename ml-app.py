@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
+from enum import Enum
 
 from sklearn import preprocessing, metrics
 from sklearn.pipeline import Pipeline
@@ -54,7 +55,7 @@ def create_model():
 
     
     with st.sidebar.header("1. Set Parameters"):
-        split_size = st.sidebar.slider("Data split ratio (% for training set)", 50, 90, 85)
+        split_size = st.sidebar.slider("Data split ratio (% for training set)", 50, 90, 80)
         random_seed = st.sidebar.slider("Random state for the dataset", 1, 1000, 100)
     
     # Train test split
@@ -89,27 +90,31 @@ def create_model():
     pipeline_svc = Pipeline(steps_for_svc)
 
     # GridSearchCV definitions
-    cv_knn = GridSearchCV(pipeline_knn, param_grid=parameters_knn)
-    cv_svc = GridSearchCV(pipeline_svc, param_grid=parameters_pca)
+    cv_knn = GridSearchCV(pipeline_knn, param_grid=parameters_knn, n_jobs=5)
+    cv_svc = GridSearchCV(pipeline_svc, param_grid=parameters_pca, n_jobs=5)
 
-    
+    # Model names are enumerated
+    class Model(Enum):
+        KNN = "K Nearest Neighbors Classifier"
+        CSV = "C-Support Vector Classifier"
+        RFC = "Random Forest Classifier"
+        XGB = "xgboost"
+        GBM = "lightgbm"
 
-    model_names_arr = ["K Nearest Neighbors Classifier",
-    "C-Support Vector Classifier", "Random Forest Classifier", "xgboost", "lightgbm"]
 
     with st.sidebar.header("2. Select a model"):
         st.sidebar.write("A pipeline using optimized hyperparameters\
         and with cross-validation will be created according to your selection.\
         This process could take some time with respect to the selected model.")
         model_name = st.sidebar.radio("label",label_visibility="collapsed", 
-        options=(model_names_arr[0], model_names_arr[1], model_names_arr[2],
-         model_names_arr[3], model_names_arr[4]))
+        options=(Model.KNN.value, Model.CSV.value, Model.RFC.value, Model.XGB.value, Model.GBM.value))
 
     model = None
     best_params = None
+    vectorizer = TfidfVectorizer()
 
     # Fit the models
-    if(model_name == model_names_arr[0]):
+    if(model_name == Model.KNN.value):
         model = cv_knn
         # Fit the model
         model.fit(X_train, y_train)
@@ -127,7 +132,7 @@ def create_model():
         acc_score_train = accuracy_score(y_train, y_pred_train)
         f1_train = f1_score(y_train, y_pred_train)
 
-    elif(model_name == model_names_arr[1]):
+    elif(model_name == Model.CSV.value):
         model = cv_svc
         # Fit the model
         model.fit(X_train, y_train)
@@ -145,10 +150,9 @@ def create_model():
         acc_score_train = accuracy_score(y_train, y_pred_train)
         f1_train = f1_score(y_train, y_pred_train)
 
-    elif(model_name == model_names_arr[2]):
+    elif(model_name == Model.RFC.value):
         # Random Forest
 
-        vectorizer = TfidfVectorizer()
 
         X_train = vectorizer.fit_transform(X_train)
         X_test = vectorizer.transform(X_test)
@@ -170,11 +174,11 @@ def create_model():
         }
 
         clf=RandomForestClassifier(n_estimators=10)
-        rf_random = RandomizedSearchCV(estimator = clf,param_distributions = random_grid,
+        model = RandomizedSearchCV(estimator = clf,param_distributions = random_grid,
                     n_iter = 10, cv = 5, verbose=2, random_state=35, n_jobs = -1)
-        rf_random.fit(X_train, y_train)
-        y_pred_test = rf_random.predict(X_test)
-        y_pred_train = rf_random.predict(X_train)
+        model.fit(X_train, y_train)
+        y_pred_test = model.predict(X_test)
+        y_pred_train = model.predict(X_train)
 
         # Test scores
         acc_score_test = accuracy_score(y_test, y_pred_test)
@@ -184,7 +188,7 @@ def create_model():
         acc_score_train = accuracy_score(y_train, y_pred_train)
         f1_train = f1_score(y_train, y_pred_train)
 
-    elif(model_name == model_names_arr[3]):
+    elif(model_name == Model.XGB.value):
         vectorizer = TfidfVectorizer()
 
         X_train = vectorizer.fit_transform(X_train)
@@ -203,7 +207,7 @@ def create_model():
         acc_score_train = accuracy_score(y_train, y_pred_train)
         f1_train = f1_score(y_train, y_pred_train)
     
-    elif(model_name == model_names_arr[4]):
+    elif(model_name == Model.GBM.value):
         vectorizer = TfidfVectorizer()
 
         X_train = vectorizer.fit_transform(X_train)
@@ -231,21 +235,8 @@ def create_model():
     res_text = "2 Model Performance For %s" %(model_name)
     st.subheader(res_text)
 
-    st.markdown("**2.1 Training Set**")
-
-    # st.write("Mean cross-validated score of the best_estimator")
-    # st.info(round(best_score, 2))
-    # st.write("R^2 score")
-    # st.info(round(r2_train, 2))
-    # st.write("Mean Squarred Error (MSE)")
-    # st.info(round(mse_train, 2))
-    st.write("Accuracy score")
-    st.info(round(acc_score_train, 2))
-    st.write("F1 score")
-    st.info(round(f1_train, 2))
-
     
-    st.markdown("**2.2 Test Set**")
+    st.markdown("**2.1 Metrics**")
     # st.write("R^2 score")
     # st.info(r2_test)
     # st.write("Mean Squarred Error (MSE)")
@@ -255,7 +246,7 @@ def create_model():
     st.write("F1 score")
     st.info(round(f1_test, 2))
 
-    st.markdown("**2.3 Confusion Matrix**")
+    st.markdown("**2.2 Confusion Matrix**")
     disp.plot()
     st.pyplot()
 
@@ -270,6 +261,36 @@ def create_model():
     if (best_params is not None):
         st.markdown("**3.3 Best Parameters Found**")
         st.info(best_params)
+
+
+    # Add text box to get user input and classify it
+    st.subheader("**4. Test the model with custom input**")
+    new_input = st.text_input(label="You can test the classifier by giving custom input below:", placeholder="Enter here")
+
+    pred = -1
+    result_to_show = ""
+
+    # When user types something
+    if new_input != "":
+        # Convert and put into an array
+        new_input = [new_input]
+
+        # Two models have pipelines which have vectorizers so we don't have to vectorize the input seperately.
+        if(model_name == Model.KNN.value or model_name == Model.CSV.value):
+            
+            # Predict
+            pred = model.best_estimator_.predict(new_input)[0]
+        
+        # Other three models doesn't have pipelines which have vectorizers so we have to vectorize the input seperately.
+        else:
+            new_input = vectorizer.transform(new_input)
+
+            # Predict
+            pred = model.predict(new_input)[0]
+        
+        result_to_show = "Not a Design Decision" if pred == 0 else "Design Decision"
+        st.markdown("**Prediction**")
+        st.info(result_to_show)
 
 
 if __name__ == "__main__":

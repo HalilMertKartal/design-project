@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
-from enum import Enum
+import json
 
+from enum import Enum
 from sklearn import preprocessing, metrics
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, train_test_split, RandomizedSearchCV
@@ -291,6 +292,28 @@ def create_model():
         result_to_show = "Not a Design Decision" if pred == 0 else "Design Decision"
         st.markdown("**Prediction**")
         st.info(result_to_show)
+
+    # Read allEntities.json and create a table to show.
+    allEntities = ""
+    f = open("allEntities_v2.json")
+    for line in f:
+        allEntities += line
+    entitiesDict = json.loads(allEntities)
+    # Convert values from array to string
+    for key in entitiesDict:
+        newVal = ""
+        for i in entitiesDict[key]:
+            newVal += i
+            newVal += " "
+        entitiesDict[key] = newVal
+    print(entitiesDict)
+    entitiesDf = pd.DataFrame.from_dict([entitiesDict])
+    entitiesDf.rename(columns = {'0':'Entities'},
+                    inplace = True)
+
+    st.subheader("**5. Extracting the entities of design decisions**")
+    st.markdown("**It can be seen below as a table**")
+    st.table(entitiesDf.T)
 
 
 if __name__ == "__main__":

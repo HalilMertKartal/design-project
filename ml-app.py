@@ -394,5 +394,29 @@ def create_model():
     if len(resultArr) == 0:
         st.info("Could not find anything about '{0}'".format(wordToQuery))
 
+    # Read allEntities.json and create a table to show.
+    allRecommendations = ""
+    f = open("allRecommendations.json")
+    for line in f:
+        allRecommendations += line
+    recommendationsDict = json.loads(allRecommendations)
+    # Convert values from array to string
+    for key in recommendationsDict:
+        newVal = ""
+        for i in recommendationsDict[key]:
+            if i == None:
+                i = "-"
+            newVal += i
+            newVal += " "
+        recommendationsDict[key] = newVal
+    
+    recommendationsDf = pd.DataFrame.from_dict([recommendationsDict])
+    #recommendationsDict = recommendationsDict.rename(index = {0: 'Design Decision'})
+    
+    st.subheader("**7. All recommendations done by the extracted entities**")
+    st.markdown("**In this part, you can see some of the recommendations (first 200) for all entries if it was found.\
+                 A '-' was placed if nothing found about the specific entry.**")
+    st.table(recommendationsDf.T.head(200))
+
 if __name__ == "__main__":
     create_model()

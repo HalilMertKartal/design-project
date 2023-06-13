@@ -4,6 +4,7 @@ import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
 import json
+import re
 
 from enum import Enum
 from sklearn import preprocessing, metrics
@@ -16,19 +17,22 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 from sklearn.decomposition import TruncatedSVD
+from SPARQLWrapper import SPARQLWrapper, JSON
 
 
-st.set_page_config(page_title="Design Decision Classification", layout="wide")
+st.set_page_config(page_title="Design Project", layout="wide")
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
 st.write(
     """
-    # Design Decision Clasifier
-    In this implementation, different models are used for classifying the design decisions.
+    # Design Decision Classifier, NLP extractor and design solution recommendation maker
+    In this part, different models are used for classifying the design decisions.
     Try adjusting the parameters and select the model you desire. Note that\
     hyperparameter optimization will be done in the background for the selected model.
     """
 )
+st.write("Halil Mert KARTAL, 21946314")
+st.write("Mert Kuğ, 21827646")
 
 def create_model():
     # Read the csv
@@ -37,8 +41,11 @@ def create_model():
     y = df["label"].values
 
     st.subheader("**1. Dataset summary**")
-    st.markdown("**1.1 Tabular view of the data**")
-    st.table(df.head())
+    st.markdown("**1.1 Tabular view of the data (first 50)**")
+    df.rename(columns={"Unnamed: 0":"index"})
+    for col in df.columns:
+        print(col)
+    st.table(df.head(50))
 
     st.markdown("**1.2 Data split shapes**")
 
@@ -306,15 +313,86 @@ def create_model():
             newVal += i
             newVal += " "
         entitiesDict[key] = newVal
-    print(entitiesDict)
+    
     entitiesDf = pd.DataFrame.from_dict([entitiesDict])
-    entitiesDf.rename(columns = {'0':'Entities'},
-                    inplace = True)
+    entitiesDf = entitiesDf.rename(index = {0: 'Design Decision'})
 
-    st.subheader("**5. Extracting the entities of design decisions**")
-    st.markdown("**It can be seen below as a table**")
-    st.table(entitiesDf.T)
+    st.subheader("**5. Extracting the entities and quality attributes of design decisions**")
+    st.markdown("**In this part, Natural Language Processing techniques are used to extract corresponding synonyms\
+                and representing keywords of each quality attribute. It can be seen at the table below (first 100)**")
+    st.table(entitiesDf.T.head(100))
 
+    st.subheader("**6. Recommandations by SPARQL queries using the entities**")
+    st.markdown("**In this part, you can try the recommendation maker by selecting an example entity below. Execution of \
+                the SPARQL query may take some time.**")
+
+    wordToQuery = st.selectbox(
+    'Please select an entity below',
+    ('algorithm', 'audit', 'authentication', 'cache', 'calculator', 'database', 'debugging', 'encryption',
+      'filesystem', 'image editor', 'kernel', 'linear algebra', 'maven', 'metadata', 'parsing', 'python', 'rpc', 'server', 
+      'ssh', 'usenet', 'vanilla', 'web application', 'yarn'))
+    
+    sparql = SPARQLWrapper("http://dbpedia.org/sparql")
+
+    sparql.setReturnFormat(JSON)
+    sparql.setQuery(
+    """
+    PREFIX      owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX      xsd: <http://www.w3.org/2001/XMLSchema#>
+    PREFIX     rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX      rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX     foaf: <http://xmlns.com/foaf/0.1/>
+    PREFIX       dc: <http://purl.org/dc/elements/1.1/>
+    PREFIX      res: <http://dbpedia.org/resource/>
+    PREFIX dbpedia2: <http://dbpedia.org/property/>
+    PREFIX  dbpedia: <http://dbpedia.org/>
+    PREFIX     skos: <http://www.w3.org/2004/02/skos/core#>
+    PREFIX dbc:	<http://dbpedia.org/resource/Category:>
+    PREFIX dbo:	<http://dbpedia.org/ontology/>
+    PREFIX dbp:	<http://dbpedia.org/property/>
+    PREFIX ns: <http://example.org/namespace/>
+    PREFIX dct: <http://purl.org/dc/terms/>
+
+
+    SELECT DISTINCT ?software WHERE {
+    {
+        ?software dbo:genre ?genre ;
+                rdf:type dbo:Software .
+        ?genre rdfs:label ?genreLabel .
+        FILTER (lcase(str(?genreLabel)) = lcase("%s"))
+    }
+    UNION
+    {
+        ?software dct:subject ?concept ;
+                rdf:type dbo:Software .
+        ?concept rdfs:label ?conceptLabel .
+        FILTER (lcase(str(?conceptLabel)) = lcase("%s"))
+    }
+    
+
+    }
+    """
+    %(wordToQuery, wordToQuery)
+    
+    )
+
+    resultArr = []
+    try:
+        ret = sparql.queryAndConvert()
+
+        for r in ret["results"]["bindings"]:
+            for i in r:
+                for j in r[i]:
+                    if j == "value":
+                        result = re.search(r'/([^/]+)$', r[i][j]).group(1)
+                        resultArr.append(result)
+    except Exception as e:
+        print(e)
+        
+    for i in resultArr:
+        st.info(i, icon="✅")
+    if len(resultArr) == 0:
+        st.info("Could not find anything about '{0}'".format(wordToQuery))
 
 if __name__ == "__main__":
     create_model()

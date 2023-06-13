@@ -25,7 +25,7 @@ st.set_option('deprecation.showPyplotGlobalUse', False)
 
 st.write(
     """
-    # Design Decision Classifier, NLP extractor and design solution recommendation maker
+    # Design Decision Classifier, NLP Keyword Extractor and Design Solution Recommendation Maker
     In this part, different models are used for classifying the design decisions.
     Try adjusting the parameters and select the model you desire. Note that\
     hyperparameter optimization will be done in the background for the selected model.
@@ -317,7 +317,7 @@ def create_model():
     entitiesDf = pd.DataFrame.from_dict([entitiesDict])
     entitiesDf = entitiesDf.rename(index = {0: 'Design Decision'})
 
-    st.subheader("**5. Extracting the entities and quality attributes of design decisions**")
+    st.subheader("**5. Extraction of the entities and quality attributes of design decisions**")
     st.markdown("**In this part, Natural Language Processing techniques are used to extract corresponding synonyms\
                 and representing keywords of each quality attribute. It can be seen at the table below (first 100)**")
     st.table(entitiesDf.T.head(100))
